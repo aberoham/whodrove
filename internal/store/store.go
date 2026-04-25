@@ -70,8 +70,18 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("schema: %w", err)
 	}
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	if err := s.migrate(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
+	return s, nil
 }
+
+// DB exposes the underlying *sql.DB for callers that need to compose
+// custom queries (the GCP-side per-minute feature insert in particular).
+// Use sparingly — prefer typed helpers on Store.
+func (s *Store) DB() *sql.DB { return s.db }
 
 func (s *Store) Close() error { return s.db.Close() }
 
@@ -147,6 +157,32 @@ VALUES (?,?,?,?)`, sid, n.EventTime, n.EventType, n.Payload)
 		return fmt.Errorf("insert notable %s/%s: %w", sid, n.EventType, err)
 	}
 	return nil
+}
+
+// ReplaceNotable wipes any prior notable_events rows for sid and inserts
+// the supplied set in one transaction. Callers should use this rather
+// than bare InsertNotable when re-parsing a session, otherwise re-runs
+// of `pull` over an overlapping date range duplicate every notable row.
+func (s *Store) ReplaceNotable(sid string, events []NotableEvent) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM notable_events WHERE session_id=?`, sid); err != nil {
+		return fmt.Errorf("delete notable %s: %w", sid, err)
+	}
+	stmt, err := tx.Prepare(`INSERT INTO notable_events (session_id, event_time, event_type, payload) VALUES (?,?,?,?)`)
+	if err != nil {
+		return fmt.Errorf("prepare notable insert: %w", err)
+	}
+	defer stmt.Close()
+	for _, n := range events {
+		if _, err := stmt.Exec(sid, n.EventTime, n.EventType, n.Payload); err != nil {
+			return fmt.Errorf("insert notable %s/%s: %w", sid, n.EventType, err)
+		}
+	}
+	return tx.Commit()
 }
 
 // ListBySelector returns sessions whose labels satisfy every requirement.
