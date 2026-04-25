@@ -5,9 +5,10 @@ and stores audit events and session recordings. They are the **step 1** output
 of a multi-step program whose later steps are:
 
   2. Decide where a downstream detection / classifier apparatus should tap into
-     the system (see `05-tap-points-for-detection.md`).
-  3. Build the actual detections / agent-driven session classifier (placeholder
-     in `06-pipeline-design-stub.md`).
+     the system (see `05-tap-points-for-detection.md`) and design the local
+     analysis CLI that drives it (`06-pipeline-design.md`).
+  3. Build the actual detections / agent-driven session classifier on top of
+     the SQLite extract that step 2 produces.
 
 The notes are written for a senior engineer who already understands the
 operational surface of Teleport (you have Web UI access, you can run `tctl`, you
@@ -42,7 +43,7 @@ Read sequentially the first time. Cross-reference freely after that.
 | [03 — Ecosystem & gRPC API](03-ecosystem-and-grpc-api.md) | Components, reverse tunnel, gRPC RPCs, config resources, RBAC, inspection commands |
 | [04 — Cloud & External Audit Storage](04-cloud-and-external-audit-storage.md) | **Weighted** — Cloud topology, EAS lifecycle, bucket layout, Parquet/Glue schema. Most relevant file for this user. |
 | [05 — Tap points for a detection pipeline](05-tap-points-for-detection.md) | The four ways to subscribe to events / recordings, with auth, latency, fidelity, cost |
-| [06 — Pipeline design stub](06-pipeline-design-stub.md) | Placeholder for step 2 — open decisions only |
+| [06 — Pipeline design](06-pipeline-design.md) | KISS Go-CLI design: Athena + S3 direct, ProtoStreamV1 parsing, SQLite with K8s-style classification labels |
 | [99 — Open questions](99-open-questions.md) | What we couldn't answer from source alone, with a verification recipe per item |
 
 Plus one historical / meta artifact, optional reading:

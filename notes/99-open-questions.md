@@ -70,6 +70,11 @@ about tapping the SIEM vs tapping upstream.
 
 (Ask the user; not derivable from source.)
 
+**Resolved-by-design (2026-04-25, see `06-pipeline-design.md`).** The step-2
+design taps Athena + S3 directly and does not depend on the Event Handler,
+so this question no longer blocks step 3. Still worth knowing operationally
+if the user later wants the SIEM path back, but not on the critical path.
+
 ## Source-side checks and questions (need code reading, not live access)
 
 ### Q8. Exact event-trim policy
@@ -172,6 +177,11 @@ The proto says re-polling re-emits chunks unordered. Implement a tiny
 consumer that re-polls a date and verify the chunks really are duplicates by
 event UID. Important for any consumer not using the Event Handler.
 
+**Resolved-by-design (2026-04-25, see `06-pipeline-design.md`).** The step-2
+design does not call `GetEventExportChunks`. Athena rows are addressable by
+`event_date` partition + `uid`, and recordings are addressed by `<sid>.tar`.
+Re-poll dedupe semantics are not on the critical path.
+
 ## Things explicitly *not* worth running down right now
 
 (Recorded so we don't keep tripping over them.)
@@ -187,9 +197,10 @@ event UID. Important for any consumer not using the Event Handler.
 
 ## How to use this list
 
-When step 2 starts, knock down Q1-Q7 first (live tenant facts) — they're
-cheap and will sharpen most of the design choices in
-`06-pipeline-design-stub.md`. Q8-Q14 are source-side checks/questions to
-answer when a specific design depends on them. Q15-Q17 are calibration; do
-them once a tap is chosen so the latency numbers in the design have actual
-measurements behind them.
+Step 2 closed Q7 and Q17 by design (`06-pipeline-design.md`). Before
+step 3, knock down Q1-Q6 (live tenant facts) — they're cheap and replace
+the `<uuid>` / `<your-tenant>` placeholders that the design and the
+classifier rules will reference. Q8-Q14 are source-side checks to answer
+when a specific step-3 design depends on them. Q15-Q16 are calibration:
+do them once the tap is exercised against the live tenant so the latency
+numbers have actual measurements behind them.
