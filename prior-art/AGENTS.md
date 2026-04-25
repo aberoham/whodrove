@@ -74,3 +74,22 @@ different shape. Cover the source factually:
   `paper-short-name.md`, or `project-name.md`.
 - If multiple sources describe one product area, use one note and list all
   sources at the top.
+
+## Index Maintenance
+
+`prior-art/README.md` carries an ordered "Index of Notes" list. Whenever a
+new prior-art note is added (or a sufficiently distinct source cluster
+splits an existing note into a new file), append a numbered entry to the
+end of that list. Do not renumber, reorder, or rewrite existing entries
+just to fit the new one — append-only.
+
+Each index entry is:
+
+- a Markdown link to the note file using the title of the note as the link
+  text and the kebab-case filename as the target;
+- followed by an em-dash and a concise three- to four-sentence summary
+  describing what the source is and what it does, written in the same
+  neutral, facts-only voice required of the note itself.
+
+If a note is removed or merged into another note, update or delete the
+matching index entry in the same change. Do not leave dangling links.
