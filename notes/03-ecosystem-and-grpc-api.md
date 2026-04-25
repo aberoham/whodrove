@@ -27,7 +27,7 @@ Mapping component → role in the audit/recording flow:
 |-----------|----------------------|------------------------------|
 | Auth Server | `user.login`, `user.create`, role/cert/recovery/MFA admin events, `session.upload` | None — but it stores everything |
 | Proxy | `session.start`/`session.end` for `proxy`/`proxy-sync` recording modes; reverse-tunnel join events | SSH recordings when in proxy mode |
-| Node (SSH) | `session.start`, `session.end`, `session.join`, `session.leave`, `session.command/network/disk` (BPF), `port.local` etc. | SSH recordings when in node mode (default) |
+| Node (SSH) | `session.start`, `session.end`, `session.join`, `session.leave`, `session.command/network/disk` (BPF), `port.local` etc. | SSH recordings when in node mode (default); BPF events are audit events, not ProtoStream recording frames |
 | Kubernetes Service | `kubernetes.request` per API call | Kube "recordings" = stream of `KubeRequest` events |
 | Database Service | `db.session.start`, `db.session.query`, `db.session.end` | DB "recordings" = stream of `DatabaseSessionQuery` events |
 | App Service | `app.session.start`, `app.session.request`, `app.session.end` | Recordings as event streams |

@@ -43,7 +43,8 @@ where context lives.
    come from SIEM (cheaper) or from gRPC/S3 (no projection drift).
 3. **Recording-content analysis.** Yes/no/sometimes. If yes, parse strategy:
    pure rules (regex over `SessionPrint` bytes), structured-event extraction
-   (`SessionCommand` from BPF), or LLM-on-PTY-bytes? Cost and privacy tradeoffs.
+   from BPF audit events (`SessionCommand` / `SessionNetwork` / `SessionDisk`),
+   or LLM-on-PTY-bytes? Cost and privacy tradeoffs.
 4. **Where the consumer runs.** AWS account-local (lowest S3 latency,
    simplest IAM), separate VPC, on-prem. Drives whether (c) and (d) are
    first-class.

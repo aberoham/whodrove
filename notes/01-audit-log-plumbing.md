@@ -8,11 +8,12 @@ server's login code path, etc.), wrapped in an `AsyncEmitter` that
 fire-and-forgets to the auth server's gRPC, validated and stamped with cluster
 metadata by a `CheckingEmitter`, and then handed to one or more storage
 backends (Athena for Cloud; DynamoDB / Postgres / Firestore / file for
-self-hosted). On the read side, four gRPC RPCs (`SearchEvents`,
-`SearchSessionEvents`, plus the v17 `GetUnstructuredEvents` /
-`StreamUnstructuredSessionEvents` / `ExportUnstructuredEvents` /
-`GetEventExportChunks`) are how anything outside the auth server pulls events
-back out — and the Event Handler integration is the canonical client.
+self-hosted). On the read side, the legacy RPCs (`SearchEvents`,
+`SearchSessionEvents`, `StreamSessionEvents`) and the v17 unstructured RPCs
+(`GetUnstructuredEvents`, `StreamUnstructuredSessionEvents`,
+`ExportUnstructuredEvents`, `GetEventExportChunks`) are how anything outside
+the auth server pulls events back out — and the Event Handler integration is
+the canonical client.
 
 Two non-obvious things to internalise up front:
 - The `AsyncEmitter` **silently drops events** when its 1024-event channel
@@ -360,9 +361,13 @@ Handler authenticates *to* Teleport using a cert minted from
 
 ## Failure modes and gotchas
 
-1. **AsyncEmitter buffer overflow → silent drop.** Watch for spikes in the
-   `audit_failed_emit_events` Prometheus counter. The reverse-tunnel /
-   auth-server connection being slow is the usual cause. There is no replay.
+1. **AsyncEmitter buffer overflow → silent drop.** Overflow logs
+   `"Failed to emit audit event. This server's connection to the auth service appears to be slow."`
+   and returns nil (`lib/events/emitter.go:112-120`). It does **not**
+   increment `audit_failed_emit_events`; that counter is incremented by
+   `CheckingEmitter` when validation or the inner emit fails
+   (`lib/events/emitter.go:171-180`). The reverse-tunnel / auth-server
+   connection being slow is the usual cause. There is no replay.
 2. **Cloud + EAS uses one backend only.** Don't expect "events written to the
    customer bucket AND DynamoDB redundancy"; the `service.go:1893` short-circuit
    means only the first Athena URI survives.
@@ -391,9 +396,10 @@ Handler authenticates *to* Teleport using a cert minted from
   frames). These are recording-only — they go to S3 but never land in Athena.
   See `02-session-recording-plumbing.md`.
 - `Resize`. Same.
-- BPF `SessionCommand` / `SessionNetwork` / `SessionDisk` events when enhanced
-  recording is on. Same — recording-only by default. Confirm against
-  `lib/events/auditlog.go` and `02` for the exact list (open question #2).
+- BPF `SessionCommand` / `SessionNetwork` / `SessionDisk` events are different:
+  despite the "enhanced recording" label, v17 emits them through the audit
+  emitter (`lib/bpf/bpf.go:424,483,538`), so they do land in the audit log
+  when enabled. They are **not** raw recording frames like `SessionPrint`.
 
 ## Cross-references
 

@@ -41,9 +41,11 @@ aws s3api get-object-lock-configuration --bucket teleport-longterm-<uuid> 2>/dev
 ```
 
 ### Q5. Glue table partition + schema
-Specifically: is the `teleport_events` table partitioned by `event_date`? If
-so, how is the partition key derived from the object path? Without partition
-pruning Athena queries are far more expensive.
+Source expects six data columns plus an `event_date DATE` partition projection
+whose storage template maps to `<events-prefix>/${event_date}/`
+(`lib/events/athena/integration_test.go:231-257`). Verify the live Glue table
+matches that shape; direct Glue edits or template drift would make Athena
+queries expensive or wrong.
 
 ```bash
 aws glue get-table --database-name teleport_events_<uuid> --name teleport_events
@@ -68,7 +70,7 @@ about tapping the SIEM vs tapping upstream.
 
 (Ask the user; not derivable from source.)
 
-## Source-side questions (need more code reading, not live access)
+## Source-side checks and questions (need code reading, not live access)
 
 ### Q8. Exact event-trim policy
 `MetricStoredTrimmedEvents` and `MetricQueriedTrimmedEvents` Prometheus
@@ -90,35 +92,65 @@ provisioning code.
 infer from `aws sqs get-queue-attributes` if you can identify the queue,
 which the customer typically can't.)
 
-### Q10. Whether the publisher's SNS large-event threshold is exactly 256 KB
-Comments say "~256 KB" matching SNS limits, but the actual number is set in
-the publisher code (`lib/events/athena/publisher.go`). This round didn't
-open it. Matters mildly because a hard cliff in event-size handling can
-explain weird latency outliers.
+### Q10. Publisher SNS large-event threshold
+The publisher sets `maxDirectMessageSize = 250 * 1024`
+(`lib/events/athena/publisher.go:52-55`), intentionally below AWS's 256 KiB
+limit to leave room for headers. Keep this as a source-verified fact rather
+than a live-tenant question; it matters mildly because a hard cliff in
+event-size handling can explain latency outliers.
 
 ```bash
 ( cd upstream-repo && grep -n 'maxDirectMessageSize\|MaxMessageSize\|sizeLimit' lib/events/athena/publisher.go | head -20 )
 ```
 
-### Q11. Where exactly is the v17 RBAC check on `SearchEvents`?
-Notes cite ~L6418 of `lib/auth/auth_with_roles.go` based on agent
-synthesis. Verify and update.
+### Q11. v17 RBAC check locations for event reads
+Source spot-check: `SearchEvents` is at
+`lib/auth/auth_with_roles.go:6419`; `SearchSessionEvents` is at
+`lib/auth/auth_with_roles.go:6453`; `StreamSessionEvents` is at
+`lib/auth/auth_with_roles.go:6557`. Keep these line references fresh if
+the repo is re-pinned.
 
 ```bash
 ( cd upstream-repo && grep -n 'func .*ServerWithRoles.* SearchEvents\|func .*ServerWithRoles.* SearchSessionEvents' lib/auth/auth_with_roles.go )
 ```
 
-### Q12. Whether the legacy `SearchEvents` path is still wired through
-in v17 against Athena, or if everything has migrated to the unstructured
-RPCs. Both APIs exist; what does the auth server actually serve from? Affects
-which path is rate-limited and which is not.
+### Q12. Legacy `SearchEvents` path under v17 Athena
+Source spot-check: it is. `GetUnstructuredEvents` calls
+`ServerWithRoles.SearchEvents` (`lib/auth/grpcserver.go:6011-6024`), which
+calls the audit log's `SearchEvents` path. Athena implements that at
+`lib/events/athena/athena.go:528-529`. The practical open question for step 2
+is not existence, but whether a custom consumer should use ordered polling
+(`GetUnstructuredEvents`) or bulk export (`GetEventExportChunks` +
+`ExportUnstructuredEvents`) for its latency/cost target.
 
 (Trace `MultiLog.SearchEvents` and Athena `Log.SearchEvents` to the gRPC
 handler to confirm.)
 
+### Q13. Event ordering guarantees
+What ordering can a detector safely assume across sessions and within a single
+session? Within a ProtoStream recording, `StreamSessionEvents` reads events
+sequentially and filters by event index (`lib/events/auditlog.go:546-577`).
+Across sessions / audit-log queries, Athena search orders by query parameters,
+while bulk export chunks are explicitly unordered. Verify the exact guarantee
+before designing dedupe and state transitions.
+
+```bash
+( cd upstream-repo && grep -n 'ORDER BY\\|event_time\\|event_index\\|session_id' lib/events/athena/querier.go | head -40 )
+```
+
+### Q14. Event Handler delivery semantics on crash mid-Fluentd-write
+The notes say the Event Handler persists cursor state and forwards to Fluentd,
+but step 2 needs the exact delivery semantics: at-least-once vs at-most-once
+around "sent to Fluentd but cursor not persisted" and "cursor persisted but
+Fluentd write failed". Verify before relying on it for alerting correctness.
+
+```bash
+( cd upstream-repo/integrations/event-handler && grep -R -n 'cursor\\|state\\|fluentd\\|Update' *.go )
+```
+
 ## Behaviour questions (need a small experiment)
 
-### Q13. End-to-end emit-to-Parquet latency in this tenant
+### Q15. End-to-end emit-to-Parquet latency in this tenant
 Run a known-shape benign event (e.g. a fake `tsh login`, or just any
 `session.start`), then time how long until it shows up in an Athena query.
 Confirms (or refutes) the "1-2 minute" estimate in the notes.
@@ -130,12 +162,12 @@ WHERE event_time > current_timestamp - interval '5' minute;
 ```
 Run repeatedly after generating a known event.
 
-### Q14. End-to-end node-side-emit to S3-recording-finalised
+### Q16. End-to-end node-side-emit to S3-recording-finalised
 For `node-sync`: time `session.start` audit row → `session.upload` audit row
 (when the multipart finalises). Tells you the "earliest moment a classifier
 could fetch the recording".
 
-### Q15. Behaviour of `GetEventExportChunks` re-poll dedup
+### Q17. Behaviour of `GetEventExportChunks` re-poll dedup
 The proto says re-polling re-emits chunks unordered. Implement a tiny
 consumer that re-polls a date and verify the chunks really are duplicates by
 event UID. Important for any consumer not using the Event Handler.
@@ -157,7 +189,7 @@ event UID. Important for any consumer not using the Event Handler.
 
 When step 2 starts, knock down Q1-Q7 first (live tenant facts) — they're
 cheap and will sharpen most of the design choices in
-`06-pipeline-design-stub.md`. Q8-Q12 only need answering once a specific
-design depends on them. Q13-Q15 are calibration; do them once a tap is
-chosen so the latency numbers in the design have actual measurements
-behind them.
+`06-pipeline-design-stub.md`. Q8-Q14 are source-side checks/questions to
+answer when a specific design depends on them. Q15-Q17 are calibration; do
+them once a tap is chosen so the latency numbers in the design have actual
+measurements behind them.

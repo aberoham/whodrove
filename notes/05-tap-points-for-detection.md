@@ -40,12 +40,17 @@ preserved as the `event_type` field but the typed protobuf union is unwrapped.
 which is the Event Handler's pattern — see `02`). So both audit log AND
 recording bytes are reachable through this single API.
 
-**Cost.** Negligible — the auth server pays for the work. Subject to the
-`SearchEventLimiter` token bucket (`lib/events/search_limiter.go`,
-configured via `LimiterBurst` etc. in the Athena config) — Cloud may have
-this set conservatively to defend against runaway clients. The bulk-export
-RPCs (`GetEventExportChunks` + `ExportUnstructuredEvents`) bypass the
-limiter and are the supported path for high-volume polling.
+**Cost.** Lower operational cost than running your own S3/Athena crawler, but
+not zero. Under EAS, the auth server's read path ultimately queries the
+customer Athena workgroup and reads customer S3 using the EAS
+`StorerQuerierAWSConfig` (`lib/events/athena/athena.go:151-156`,
+`lib/events/athena/athena.go:438-459`), so aggressive polling can still show
+up as customer-side Athena/S3 cost. The legacy `SearchEvents` /
+`SearchSessionEvents` paths are subject to the `SearchEventLimiter` token
+bucket (`lib/events/search_limiter.go:31-33,81-94`, wired at
+`lib/service/service.go:1978-1985`). The bulk-export RPCs
+(`GetEventExportChunks` + `ExportUnstructuredEvents`) avoid that limiter and
+are the supported path for high-volume export.
 
 **Operational complexity.** You're running a stateful long-lived process
 with a Teleport-issued cert. The state is just a polling cursor on disk.

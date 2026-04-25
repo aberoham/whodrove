@@ -38,7 +38,7 @@ on the protocol:
 | `SessionEnd` | yes | yes | participants, exit code, duration |
 | `SessionData` | yes | no | aggregate stats: bytes in/out |
 | `SessionUpload` | yes | no | emitted when the recording lands in S3 |
-| BPF `SessionCommand` / `SessionNetwork` / `SessionDisk` | configurable | yes | enhanced recording, see below |
+| BPF `SessionCommand` / `SessionNetwork` / `SessionDisk` | yes, when enabled | no | enhanced audit events, see below |
 
 `SessionPrint` is where the actual content of the session lives. The bytes are
 copied verbatim from the PTY, so a "recording" of an SSH session is in effect
@@ -212,17 +212,22 @@ tracked via `SessionJoin` / `SessionLeave` events written to the same stream.
    instrument `execve`, `connect`, and `openat` syscalls respectively.
 3. Filters BPF events by cgroup ID, mapping back to session ID.
 4. Emits each as a `SessionCommand` (`T4000I`), `SessionNetwork` (`T4002I`),
-   or `SessionDisk` event.
+   or `SessionDisk` (`T4001I`) event through the session's audit emitter.
 
-The events go into the **same recording stream** as SSH `SessionPrint`s, so
-they show up interleaved when the recording is replayed. They also
-flow to the audit log with category-4xxx codes.
+The naming is easy to misread: in v17 these BPF events are "enhanced recording"
+signals, but they are emitted through `ctx.Emitter.EmitAuditEvent` in
+`lib/bpf/bpf.go:424,483,538`. The BPF session context is wired with
+`s.emitter`, not `s.Recorder()` (`lib/srv/sess.go:1391-1401` and
+`lib/srv/sess.go:1564-1574`). So they flow to the **audit log** with
+category-4xxx codes; they are not written into the ProtoStreamV1 session
+recording alongside `SessionPrint` events.
 
 Worth knowing: BPF events are *the only* way to know what a session actually
 *did* without scraping the PTY bytes. For a classifier, having (or not having)
 enhanced recording makes a huge difference — `SessionCommand.Path +
-.Argv` plus `SessionNetwork.DstAddr/Port` are clean, structured signals;
-ANSI-coloured PTY bytes are not.
+.Argv` plus `SessionNetwork.DstAddr/Port` are clean, structured signals
+available from the audit event stream / Parquet table; ANSI-coloured PTY
+bytes from the recording are not.
 
 ## The streaming pipeline (ProtoStream end-to-end)
 

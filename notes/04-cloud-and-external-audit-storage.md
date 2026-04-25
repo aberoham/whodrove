@@ -235,7 +235,7 @@ Implications for any detection-side query design:
            json_extract_scalar(event_data, '$.addr.remote') AS src_ip
     FROM teleport_events_<uuid>.teleport_events
     WHERE event_time BETWEEN timestamp '2026-04-01' AND timestamp '2026-04-25'
-      AND event_type IN ('user.login', 'user.login_failed')
+      AND event_type = 'user.login'
   )
   SELECT user, src_ip, COUNT(*) FROM e
   WHERE code = 'T1000W' GROUP BY 1,2 HAVING COUNT(*) > 5;
@@ -243,9 +243,13 @@ Implications for any detection-side query design:
 
 - **Partition pruning is per-day.** The consumer writes one Parquet file
   (or a few, capped at `maxUniqueDaysInSingleBatch = 100`) per
-  `<YYYY-MM-DD>` directory (`consumer.go:70`, key format L173). Glue table
-  must be partitioned by date for pruning to actually kick in — confirm
-  with `aws glue get-table` (see commands below).
+  `<YYYY-MM-DD>` directory (`consumer.go:70`, key format L173). The matching
+  Athena table is expected to have an `event_date DATE` partition with
+  partition projection and a storage template like
+  `<events-prefix>/${event_date}/`; the integration-test DDL documents this
+  shape at `lib/events/athena/integration_test.go:231-257`, and the querier
+  always filters `event_date BETWEEN date(?) AND date(?)`
+  (`lib/events/athena/querier.go:718`).
 
 ## Bucket layout, in detail
 
@@ -366,7 +370,7 @@ aws s3 ls s3://teleport-longterm-<uuid>/events/2026-04-25/ | head
 
 # 6. Inspect the Glue table schema.
 aws glue get-table --database-name teleport_events_<uuid> --name teleport_events
-# Expect a 6-column external table backed by the events/ prefix, partitioned by date.
+# Expect 6 data columns plus an event_date DATE partition projection backed by the events/ prefix.
 
 # 7. Run a trivial Athena query (uses the customer workgroup, customer credentials).
 aws athena start-query-execution \
