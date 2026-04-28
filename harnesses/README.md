@@ -6,7 +6,7 @@ as reproducible **fixtures** — sources of labeled, replayable sessions we can
 drive through Teleport-managed nodes to exercise downstream detection and
 classification work (the step 2 / step 3 components sketched in
 [`notes/00-step1-plan.md`](../notes/00-step1-plan.md) and
-[`notes/06-pipeline-design-stub.md`](../notes/06-pipeline-design-stub.md)).
+[`notes/06-pipeline-design.md`](../notes/06-pipeline-design.md)).
 
 ## How this differs from the other top-level directories
 
@@ -18,9 +18,8 @@ classification work (the step 2 / step 3 components sketched in
 
 ## Conventions
 
-- One submodule per harness. Pin each submodule to a specific commit and
-  declare `shallow = true` in `.gitmodules`, mirroring the `upstream-repo/`
-  pattern.
+- One submodule per harness, declared `shallow = true` in `.gitmodules`,
+  mirroring the `upstream-repo/` pattern.
 - Each submodule gets a sibling `<harness>.md` writeup at the top of this
   directory. The writeup records: source URLs, pinned commit and what version
   it corresponds to, what the harness produces, how to run it locally, and

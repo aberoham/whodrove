@@ -24,8 +24,8 @@ project root:
 
 ```bash
 cd upstream-repo
-git fetch --tags
-git checkout v17.X.Y     # or another release tag
+git fetch --unshallow --tags    # the submodule is shallow by default
+git checkout v17.X.Y             # or another release tag
 ```
 
 Then re-run the spot-check from `99-open-questions.md` against any references
@@ -44,6 +44,7 @@ Read sequentially the first time. Cross-reference freely after that.
 | [04 — Cloud & External Audit Storage](04-cloud-and-external-audit-storage.md) | **Weighted** — Cloud topology, EAS lifecycle, bucket layout, Parquet/Glue schema. Most relevant file for this user. |
 | [05 — Tap points for a detection pipeline](05-tap-points-for-detection.md) | The four ways to subscribe to events / recordings, with auth, latency, fidelity, cost |
 | [06 — Pipeline design](06-pipeline-design.md) | KISS Go-CLI design: Athena + S3 direct, ProtoStreamV1 parsing, SQLite with K8s-style classification labels |
+| [07 — Terminal-Bench-as-Teleport-fixture](07-terminal-bench-teleport-fixture.md) | Step-3 fixture pipeline: drive a known agent through Terminal-Bench inside a self-hosted Teleport OSS cluster to produce labeled `operator.type=agent` sessions for the classifier |
 | [99 — Open questions](99-open-questions.md) | What we couldn't answer from source alone, with a verification recipe per item |
 
 Plus one historical / meta artifact, optional reading:
@@ -66,17 +67,11 @@ Plus one historical / meta artifact, optional reading:
 
 ## How to validate these notes
 
-Three layers:
-
-1. **Source spot-check.** Pick five `path:line` references at random and `Read`
-   them in `upstream-repo/`. Confirm the symbol still exists at (or near) the
-   stated line. Update the note if it drifted by more than a handful of lines.
-2. **Live cluster spot-check.** A handful of `tctl get …` and `aws s3 ls …`
-   commands listed in `04-cloud-and-external-audit-storage.md` will confirm the
-   shape of your specific tenant.
-3. **Second opinion.** Hand `01..05` to a fresh Claude Code session and ask
-   "find anything wrong or oversimplified in these notes against the source at
-   `upstream-repo/`." Carry corrections in.
+1. **Source spot-check.** Pick five `path:line` references at random and read
+   them in `upstream-repo/`; confirm the symbol still exists at (or near) the
+   stated line. Update if drift exceeds a handful of lines.
+2. **Live cluster spot-check.** Run the `tctl get …` and `aws s3 ls …` commands
+   listed in `04-cloud-and-external-audit-storage.md` against your tenant.
 
 ## What is *not* in scope here
 
