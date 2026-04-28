@@ -46,10 +46,30 @@ a faithful TTY recording with timing.
 
 ### Kubernetes (`lib/kube/proxy/`)
 
-No raw bytes. Each Kube API request is recorded as a `KubeRequest` event with
-method, path, request body summary, response code, response body summary.
-Streamed through the same `SessionWriter` interface as SSH. So a "Kube
-session recording" is really a structured request log, not a screencast.
+Two distinct cases, depending on the request:
+
+1. **Interactive `kubectl exec` (PTY)** — same shape as SSH. A real recorder
+   is constructed in `lib/kube/proxy/sess.go::session.lockedSetupLaunch` at
+   `L903` (`recorder.New(recorder.Config{...})`) and added to the I/O fan-out
+   at `L924` via `s.io.AddWriter(sessionRecorderID, recorder)`. `s.io` is a
+   `lib/srv.TermManager` — the same primitive SSH uses at `lib/srv/sess.go:1375`
+   — so every byte going to the client's stdout/stderr is also written to the
+   recorder as `SessionPrint` events. `SessionStart` (`sess.go:621`), `Resize`
+   (`:773`), and `SessionEnd` (`:872`) flow through the same recorder. So an
+   interactive exec recording really is a TTY screencast plus structured
+   lifecycle events, uploaded the same way SSH recordings are.
+2. **Non-interactive exec and other Kube API calls** — no PTY recorder. Each
+   API request hitting the kube proxy is logged as a `KubeRequest` audit event
+   by `lib/kube/proxy/forwarder.go::emitAuditEvent` (`L911`): method, path,
+   response code — not raw bytes.
+
+`kubectl port-forward` (`forwarder.go::portForward`, `L1770+`) is *not*
+recorded at all. It never constructs a recorder. For each forwarded address
+it emits a `PortForward` start event (`L1832-1856`, code `events.PortForwardCode`
+/ `PortForwardFailureCode`) and a `PortForwardStop` event in `defer`
+(`L1862-1880`). Bytes flowing through the tunnel are not captured — only the
+lifecycle (user, pod/namespace, local/remote addr, success bool) appears in
+the audit log.
 
 ### Database (`lib/srv/db/`)
 

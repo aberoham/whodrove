@@ -1,8 +1,7 @@
 # 06 — Pipeline design
 
-This file replaces `06-pipeline-design-stub.md`. It is the step-2 deliverable
-of the project plan in `00-step1-plan.md` / `notes/README.md`. Step 3 picks
-up from §8 below.
+This file is the step-2 deliverable of the project plan in `00-step1-plan.md` / `notes/README.md`. 
+Step 3 picks up from §8 below.
 
 ## Purpose & non-goals
 
@@ -11,9 +10,9 @@ ProtoStreamV1 parser plan, and the SQLite schema for per-session features
 plus Kubernetes-style classification labels.
 
 **Out of scope.** The classifier model, the detection rules, the training
-data, and any alerting. Those are step 3.
+data, and any alerting. Those are later steps.
 
-**Scoping decisions (recorded 2026-04-25).** The earlier draft of this file
+**Scoping decisions.** The earlier draft of this file
 proposed a long-running k8s/Postgres pipeline. Four user-supplied
 constraints collapsed that:
 
@@ -33,7 +32,7 @@ constraints collapsed that:
 **Detection-strategy hint that shapes the schema.** Phase-1 of the
 classifier (step 3) answers "is this a human terminal?" first. Cheap signal:
 `SessionPrint` chunk-arrival cadence, idle gaps, and edit characters
-(backspace, arrow keys, `ctrl-w`). Coding agents drive `tsh` as sequences
+(backspace, arrow keys, `ctrl-w`). Coding agents probably drive `tsh` as sequences
 of single-shot exec calls, not long-lived `tsh ssh` PTYs, so the
 human-vs-agent split shows up clearly in cadence features. Caveat:
 `kubectl`, `tbot`, and non-`tsh` SSH are naturally single-shot or non-PTY,

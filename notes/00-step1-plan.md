@@ -1,7 +1,7 @@
 # 00 — The plan we used for step 1
 
 > Historical artifact, preserved for context. This is the plan that was
-> agreed at the start of step 1 and that produced the rest of `notes/`.
+> captured at the start of step 1 and that produced the rest of `notes/`.
 > Future sessions don't need to read this to use the notes — start at
 > `README.md` for that. Read this only if you want to know **how** the notes
 > came to look the way they do, or if you're about to do step 2 and want a
@@ -11,11 +11,11 @@
 >
 > 1. The "What we already learned" section below was a synthesis from three
 >    parallel Explore agents *before* we read source ourselves. Some of what
->    those agents said turned out to be wrong (`SessionStart` is `T2000I`
+>    those agents claimed turned out to be wrong (`SessionStart` is `T2000I`
 >    not `T3000I`; the completer grace period is 24 h not 4 h; Cloud + EAS
 >    actually only wires one backend, not multiple). The verified versions
 >    landed in `notes/01..05`. The unverified-but-still-useful planning text
->    is left in below for honesty — see "Corrections during execution" at
+>    is left in below for posterity — see "Corrections during execution" at
 >    the end of this file for the full list of what changed.
 > 2. Absolute filesystem paths in the original plan have been replaced with
 >    project-relative paths (the original lived under
@@ -23,32 +23,31 @@
 
 ---
 
-# Plan — Step 1: Understand Teleport v17 Audit & Session Recording Plumbing
+# Plan — Step 1: Understand Teleport v17/v18 Audit & Session Recording Plumbing
 
 ## Context
 
 The user is the administrative owner of a Teleport Enterprise Cloud tenant
-(`<your-tenant>.teleport.sh`) hosted by Gravitational on AWS, running v17. Audit
+(`<your-tenant>.teleport.sh`) hosted by Gravitational on AWS, running v17 or v18. Audit
 events are forwarded to their SIEM and session recordings stream to a
 customer-owned S3 bucket (i.e. they have **External Audit Storage** enabled).
 
 The end goal is a multi-step program:
 
-1. **(this plan)** Build first-principles understanding of how Teleport
+1. **(this plan)** Documented first-principles understanding of how Teleport
    captures audit events and session recordings, how those are transported, and
-   where they ultimately land. Documented as durable markdown research notes
-   that future Claude Code sessions and humans can refer back to.
+   where they ultimately land. 
 2. Decide where the user's detection apparatus should tap into the system.
 3. Build the detections / agent-driven session classifier.
 
 This plan covers **only step 1**. It produces a small set of markdown notes
 under `notes/` (a sibling of `upstream-repo/` at the project root) derived
-strictly from the v17 source at `upstream-repo/` (currently detached at
-`Release 17.7.20`, commit `2797910`).
+strictly from the source at `upstream-repo/`
 
 ## What we already learned (Phase 1 exploration synthesis)
 
-Three Explore agents read the v17 source. These are the load-bearing facts that
+Three Explore agents read the available Teleport v17 source. (Note, the `e` reference
+to Teleport Enterprise source code was not available) These are the load-bearing facts that
 the notes must capture; details and `path:line` references live in the file
 outlines below.
 
@@ -137,16 +136,16 @@ outlines below.
   4. **Athena SQL** over the Parquet audit table — best for batch / aggregate
      analysis.
 
-## Recommended approach
+## Captured approach
 
 Create a `notes/` directory at the project root (a sibling of `upstream-repo/`)
-containing eight markdown files. Each file is short enough to read end-to-end
-in one sitting (~600-1500 words, with file 04 a bit longer given its weight),
+containing markdown files. Each file is short enough to read end-to-end
+in one sitting (~600-1500 words, with some files a bit longer given any topic's weight),
 opinionated about what matters, and dense with `path:line` references back
 into `upstream-repo/` so a future session can re-verify any claim against
 source.
 
-### Files to create
+### Created files
 
 | # | Path | Purpose |
 |---|------|---------|
@@ -155,14 +154,13 @@ source.
 | 2 | `notes/02-session-recording-plumbing.md` | Capture per protocol, ProtoStream format, S3 upload, completer, playback |
 | 3 | `notes/03-ecosystem-and-grpc-api.md` | Components, reverse tunnel, gRPC RPCs, config resources, RBAC |
 | 4 | `notes/04-cloud-and-external-audit-storage.md` | **Weighted file** — Cloud topology + deep dive on EAS bucket layout, Parquet/Glue schema, KMS, OIDC credential exchange. Most relevant file for this user. |
-| 5 | `notes/05-tap-points-for-detection.md` | The four tap-point options with auth, latency, fidelity, cost; bridge to step 2 |
+| 5 | `notes/05-tap-points-for-detection.md` | The four tap-point options with auth, latency, fidelity, cost; bridge to later steps |
 | 6 | `notes/06-pipeline-design-stub.md` | **Step-2 handoff stub** — open questions and decision points for designing the detection pipeline. Near-empty by design; populated in the next phase. |
 | 7 | `notes/99-open-questions.md` | Things we couldn't answer from source alone — material for a second-opinion review |
 
 ### File outlines
 
-Each outline lists the sections to write and the **specific code references**
-the section must cite (so future sessions can verify without rerunning the
+Each outline lists the sections and **specific code references** (so future sessions can verify without rerunning the
 Explore agents).
 
 **`notes/README.md`** (~300-500 words)
@@ -176,7 +174,6 @@ Explore agents).
   validation section below
 
 **`notes/01-audit-log-plumbing.md`** (~1500 words)
-- 30-second summary
 - The `AuditEvent` interface and `Metadata` struct
   - `lib/events/api.go`, `api/proto/teleport/legacy/types/events/events.proto`
   - Code naming convention (T-prefix, severity suffix); pointer to
@@ -206,7 +203,6 @@ Explore agents).
   limit; Athena ~1-2 min batch lag; events >250 KB go via S3 staging
 
 **`notes/02-session-recording-plumbing.md`** (~1500 words)
-- 30-second summary
 - What a recording IS (the protobuf event stream)
   - Per-protocol event variants — SSH (`SessionPrint`), Kube (`KubeRequest`),
     DB (`DatabaseSessionQuery`), Desktop (`DesktopRecording` / TDP)
@@ -387,7 +383,7 @@ After the notes are written, sanity-check them by:
    in these notes against the source at `upstream-repo/`." Carry corrections
    into the notes.
 
-### Out of scope for step 1
+### Out of scope for initial steps
 
 - No code changes to anything (we are reading `upstream-repo/`, not modifying it)
 - No connection to the live `<your-tenant>.teleport.sh` cluster

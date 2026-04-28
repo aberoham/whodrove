@@ -5,7 +5,7 @@
 An **audit event** is a protobuf message implementing `apievents.AuditEvent`.
 It is created at the point of action (a node's SSH session handler, the auth
 server's login code path, etc.), wrapped in an `AsyncEmitter` that
-fire-and-forgets to the auth server's gRPC, validated and stamped with cluster
+fires-and-forgets to the auth server's gRPC, validated and stamped with cluster
 metadata by a `CheckingEmitter`, and then handed to one or more storage
 backends (Athena for Cloud; DynamoDB / Postgres / Firestore / file for
 self-hosted). On the read side, the legacy RPCs (`SearchEvents`,
@@ -19,7 +19,7 @@ Two non-obvious things to internalise up front:
 - The `AsyncEmitter` **silently drops events** when its 1024-event channel
   buffer fills (`lib/events/emitter.go:118-120`). It logs at error level but
   returns nil. Lost events are not retried.
-- For Cloud tenants with External Audit Storage enabled, there is **only one
+- For Cloud tenants with External Audit Storage (EAS) enabled, there is **only one
   storage backend** — Athena (`lib/service/service.go:1893-1896`). Any other
   configured `audit_events_uri` is silently skipped.
 
@@ -140,7 +140,7 @@ with `Success: true|false` and an error string on failure.
   feature-rich primary with a degraded secondary; reads always come from the
   primary.
 
-In v17 Cloud with EAS, only one backend (Athena) is wired up, so `MultiLog`
+In v17 Cloud with EAS (External Audit Storage), only one backend (Athena) is wired up, so `MultiLog`
 isn't even constructed — `lib/service/service.go:2034-2038` returns the
 single logger directly.
 
